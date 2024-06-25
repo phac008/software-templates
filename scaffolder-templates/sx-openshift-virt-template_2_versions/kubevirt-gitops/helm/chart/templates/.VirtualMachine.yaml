@@ -1,0 +1,77 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  annotations:
+    description: {{ .Values.description }}
+  name: {{ .Values.application_id }}
+  namespace: suxess-it-{{ .Values.environment }}
+  labels:
+    app: {{ .Values.application_id }}
+    backstage.io/kubernetes-id: {{ .Values.application_id }}
+    kubecost.com/deployment-name: {{ .Values.application_id }}
+    kubevirt.io/dynamic-credentials-support: 'true'
+    #vm.kubevirt.io/template:  {{ .Values.os }}-{{ .Values.workload }}-{{ .Values.flavor }}
+    vm.kubevirt.io/template:  {{ .Values.os }}-server-small #to get default values
+    vm.kubevirt.io/template.namespace: openshift
+spec:
+  dataVolumeTemplates:
+    - apiVersion: cdi.kubevirt.io/v1beta1
+      kind: DataVolume
+      metadata:
+        creationTimestamp: null
+        name: {{ .Values.application_id}}
+      spec:
+        sourceRef:
+          kind: DataSource
+          name: {{ .Values.os }}
+          namespace: openshift-virtualization-os-images
+        storage:
+          resources:
+            requests:
+              storage: {{ .Values.disk }} # must be equal/greater Datasource!!
+  running: {{ .Values.running }}
+  template:
+    metadata:
+      annotations:
+        vm.kubevirt.io/os: {{ .Values.os }} # min. 1 annotation needed
+      creationTimestamp: null
+      labels:
+        kubevirt.io/domain: {{ .Values.application_id }}
+        backstage.io/kubernetes-id: {{ .Values.application_id }}
+        kubecost.com/deployment-name: {{ .Values.application_id }}
+        app: {{ .Values.application_id }}
+    spec:
+      architecture: amd64
+      domain:
+        cpu:
+          cores: {{ .Values.cores }}
+        devices:
+          disks:
+            - disk:
+                bus: virtio
+              name: rootdisk
+            - disk:
+                bus: virtio
+              name: cloudinitdisk
+          interfaces:
+            - masquerade: {}
+              model: virtio
+              name: default
+          networkInterfaceMultiqueue: true
+        memory:
+          guest: {{ .Values.memory }}
+      networks:
+        - name: default
+          pod: {}
+      terminationGracePeriodSeconds: 180
+      volumes:
+        - dataVolume:
+            name: {{ .Values.application_id }}
+          name: rootdisk
+        - cloudInitConfigDrive:
+            userData: |-
+              #cloud-config
+              user: cloud-user
+              password: {{ .Values.initpwd }}
+              chpasswd: { expire: False }
+          name: cloudinitdisk

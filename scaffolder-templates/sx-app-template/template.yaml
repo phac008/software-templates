@@ -1,0 +1,124 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: sx-application-template
+  title: sX Application Template
+  description: Run Demo Application in ArgoCD namespace
+  tags:
+    - application
+spec:
+  owner: user:philipp.achmueller
+  type: system
+  
+  parameters:
+    - title: Provide information on this application
+      required:
+        - application_id
+        - owner
+        - environments
+        - description
+        - imageUrl
+        - replicaCount
+      properties:
+        application_id:
+          title: Name
+          type: string
+          description: Unique name of this application
+        description:
+          title: Description
+          type: string
+          description: Help others understand what this application is for.
+        owner:
+          title: Owner
+          type: string
+          description: Owner of this applications
+          ui:field: OwnerPicker
+          ui:options:
+            allowedKinds: 
+              - Group
+              - User
+        imageUrl:
+          title: Dockerimage Location
+          type: string       
+          default: 'quay.io/rbaumgar/monitor-demo-app-jvm'               
+        environments:
+          title: Environments
+          type: array
+          description: Environments needed by this application
+          items:
+            type: string
+            enum: 
+              - prod
+              - dev
+              - qa
+          uniqueItems: true
+          ui:widget: checkboxes
+        replicaCount:
+          title: Number of replicas for Pods
+          type: string
+          default: '1'
+          
+
+  steps:
+    - id: template-namespacesetup
+      name: Fetch Namespacesetup Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./skeleton/namespacesetup
+        copyWithoutRender: []
+        values:
+          application_id: ${{ parameters.application_id }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          environments: ${{ parameters.environments }}
+
+    - id: pull-request-namespacesetup
+      name: make a pr to approved-namespaces repo with additional namespacesetup
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?repo=approved-namespaces&owner=phac008
+        branchName: ${{ parameters.application_id }}
+        title: argoapps and system config for ${{ parameters.application_id }}
+        description: argoapps and system config for ${{ parameters.application_id }}
+        
+    - id: template-gitops
+      name: Fetch Skeleton + Template
+      action: fetch:template
+      input:
+        url: ./app-gitops
+        copyWithoutRender: []
+        values:
+          application_id: ${{ parameters.application_id }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          environments: ${{ parameters.environments }}
+          imageUrl: ${{ parameters.imageUrl }}
+          replicaCount: ${{ parameters.replicaCount }}
+        targetPath: ./app-gitops
+
+    - id: publish-gitopsreposetup
+      name: Publish Template Gitops Repo
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: This is ${{ parameters.application_id }}
+        repoUrl: github.com?repo=${{ parameters.application_id }}-gitops&owner=phac008
+        repoVisibility: public
+        sourcePath: ./app-gitops
+        deleteBranchOnMerge: true
+        protectDefaultBranch: false
+
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps["publish-gitopsreposetup"].output.repoContentsUrl }}
+        catalogInfoPath: '/catalog-info.yaml'
+  
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps["publish-gitopsreposetup"].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}

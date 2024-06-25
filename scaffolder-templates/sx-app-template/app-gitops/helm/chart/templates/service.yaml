@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${{values.application_id}}
+  namespace: suxess-it-${{values.environments}}
+  labels:
+    app: ${{values.application_id}}
+    backstage.io/kubernetes-id: ${{values.application_id}}
+spec:
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: ${{values.application_id}}
+  type: ClusterIP

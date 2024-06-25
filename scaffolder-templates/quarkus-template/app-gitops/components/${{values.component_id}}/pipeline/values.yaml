@@ -1,0 +1,10 @@
+quarkus-pipeline:
+  fullnameOverride: ${{values.artifact_id}}
+  team: ${{values.team}}
+  repositoryOwner: ${{values.organization}}
+  ownerType: organization
+  repositoryName: ${{values.repo_id}}
+  # https://el-raffa-qrs2-myapp-build.apps.cluster1.mcp.pitagora.at
+  baseURL: dummy
+
+  #helm upgrade raffa-qrs2 .helm/tekton -i -n myapp-build 

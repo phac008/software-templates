@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ${{values.application_id}}-ingress
+  namespace: suxess-it-${{values.environments}}
+  labels:
+    app: ${{values.application_id}}
+    backstage.io/kubernetes-id: ${{values.application_id}}
+spec:
+  ingressClassName: openshift-default
+  rules:
+  - host: ${{values.application_id}}-suxess-it-${{values.environments}}.apps.cluster1.mcp.pitagora.at
+    http:
+      paths:
+      - backend:
+          service:
+            name: ${{values.application_id}}
+            port:
+              number: 8080
+        path: /
+        pathType: Prefix

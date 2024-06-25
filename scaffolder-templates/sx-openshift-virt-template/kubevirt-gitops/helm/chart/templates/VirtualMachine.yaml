@@ -1,0 +1,88 @@
+{{- range $stage, $values := .Values }}
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  annotations:
+    description: {{ $values.description }}
+  name: {{ $values.application_id }}-{{ $stage }}
+  namespace: suxess-it-{{ $stage }}
+  labels:
+    app: {{ $values.application_id }}
+    backstage.io/kubernetes-id: {{ $values.application_id }}
+    kubecost.com/deployment-name: {{ $values.application_id }}
+    kubevirt.io/dynamic-credentials-support: 'true'
+    vm.kubevirt.io/template:  {{ $values.os }}-server-small #to get default values
+    vm.kubevirt.io/template.namespace: openshift
+spec:
+  dataVolumeTemplates:
+    - apiVersion: cdi.kubevirt.io/v1beta1
+      kind: DataVolume
+      metadata:
+        creationTimestamp: null
+        name: {{ $values.application_id}}
+      spec:
+        sourceRef:
+          kind: DataSource
+          name: {{ $values.os }}
+          namespace: openshift-virtualization-os-images
+        storage:
+          resources:
+            requests:
+              storage: {{ $values.disk }} # must be equal/greater Datasource!!
+  running: {{ $values.running }}
+  template:
+    metadata:
+      annotations:
+        vm.kubevirt.io/os: {{ $values.os }} # min. 1 annotation needed
+      creationTimestamp: null
+      labels:
+        kubevirt.io/domain: {{ $values.application_id }}
+        backstage.io/kubernetes-id: {{ $values.application_id }}
+        kubecost.com/deployment-name: {{ $values.application_id }}
+        app: {{ $values.application_id }}
+    spec:
+      terminationGracePeriodSeconds: 180
+      architecture: amd64
+      domain:
+        cpu:
+          cores: {{ $values.cores }}
+        devices:
+          disks:
+            - disk:
+                bus: virtio
+              name: rootdisk
+            - disk:
+                bus: virtio
+              name: cloudinitdisk
+          interfaces:
+            - masquerade: {}
+              model: virtio
+              name: default
+          networkInterfaceMultiqueue: true
+        memory:
+          guest: {{ $values.memory }}
+      networks:
+        - name: default
+          pod: {}
+      terminationGracePeriodSeconds: 180
+      volumes:
+        - dataVolume:
+            name: {{ $values.application_id }}
+          name: rootdisk
+        - cloudInitConfigDrive:
+            userData: |-
+              #cloud-config
+              user: cloud-user
+              password: {{ $values.initpwd }}
+              chpasswd: { expire: False }
+            {{- if $values.os | contains "fedora" }}
+              runcmd:
+                - sudo dnf update
+                - sudo dnf install httpd -y
+                - sudo sed -iE 's/Listen 80/Listen 8080/' /etc/httpd/conf/httpd.conf
+                - sudo systemctl enable httpd.service
+                - sudo systemctl start httpd.service
+            {{- end }}
+          name: cloudinitdisk
+  {{- end }}
